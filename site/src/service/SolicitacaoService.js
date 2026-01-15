@@ -50,6 +50,10 @@ class SolicitacaoService {
     });
   }
 
+  acompanhamento() {
+    return axios.get('/cotacoes/acompanhamento');
+  }
+
   analyzeAndSelectApprovals(id, payload) {
     return axios.post(`/cotacoes/${id}/analisar-aprovacoes`, payload);
   }

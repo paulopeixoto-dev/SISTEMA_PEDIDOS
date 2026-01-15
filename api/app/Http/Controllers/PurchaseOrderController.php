@@ -135,9 +135,17 @@ class PurchaseOrderController extends Controller
             'items.quoteItem',
             'company',
             'quote.approvals.approver',
+            'quote.approvals' => function ($query) {
+                $query->where('required', true);
+            },
             'createdBy',
             'quoteSupplier'
         ])->findOrFail($id);
+        
+        // Garantir que o relacionamento approver está carregado para todas as aprovações
+        if ($order->quote && $order->quote->approvals) {
+            $order->quote->load(['approvals.approver']);
+        }
 
         // Verificar se o pedido pertence à empresa
         if ($order->company_id != $companyId) {
@@ -156,6 +164,12 @@ class PurchaseOrderController extends Controller
         $totalDEC = 0; // Desconto
         $valorTotal = $totalIten + $totalICM + $totalIPI + $totalSEG + $totalDES + $totalFRE - $totalDEC;
 
+        // Recarregar a cotação para garantir que as aprovações mais recentes sejam consideradas
+        if ($order->quote) {
+            $order->quote->refresh();
+            $order->quote->load(['approvals.approver']);
+        }
+        
         // Buscar assinaturas - usar aprovações da cotação se disponível
         $signatures = $this->getSignaturesByProfile($request, $companyId, $order->quote);
         
@@ -267,49 +281,65 @@ class PurchaseOrderController extends Controller
 
         $signatures = [];
 
-        // Se há cotação com aprovações, usar APENAS as aprovações que foram aprovadas
+        // Se há cotação com aprovações, usar APENAS os níveis selecionados (required = true) que foram aprovados
         if ($quote && $quote->approvals && $quote->approvals()->exists()) {
-            // Buscar APENAS aprovações que foram realmente aprovadas (approved = true e approved_by não é null)
-            $approvedApprovals = $quote->approvals()
-                ->where('approved', true)
-                ->whereNotNull('approved_by')
-                ->whereNotNull('approved_at')
+            // Buscar APENAS os níveis de aprovação que foram SELECIONADOS (required = true) para esta cotação
+            // IMPORTANTE: Carregar o relacionamento 'approver' para ter acesso à assinatura
+            $requiredApprovals = $quote->approvals()
+                ->with('approver')
+                ->where('required', true)
                 ->get();
 
-            foreach ($profiles as $profileName) {
-                // Mapear nome do perfil para nível de aprovação
-                $levelMap = [
-                    'COMPRADOR' => 'COMPRADOR',
-                    'GERENTE LOCAL' => 'GERENTE_LOCAL',
-                    'ENGENHEIRO' => 'ENGENHEIRO',
-                    'GERENTE GERAL' => 'GERENTE_GERAL',
-                    'DIRETOR' => 'DIRETOR',
-                    'PRESIDENTE' => 'PRESIDENTE',
-                ];
+            // Mapear nível de aprovação para nome do perfil
+            $levelToProfileMap = [
+                'COMPRADOR' => 'COMPRADOR',
+                'GERENTE_LOCAL' => 'GERENTE LOCAL',
+                'ENGENHEIRO' => 'ENGENHEIRO',
+                'GERENTE_GERAL' => 'GERENTE GERAL',
+                'DIRETOR' => 'DIRETOR',
+                'PRESIDENTE' => 'PRESIDENTE',
+            ];
 
-                $approvalLevel = $levelMap[$profileName] ?? null;
+            // Para cada nível selecionado, verificar se foi aprovado e adicionar assinatura
+            foreach ($requiredApprovals as $approval) {
+                $profileName = $levelToProfileMap[$approval->approval_level] ?? $approval->approval_level;
                 
-                if ($approvalLevel) {
-                    // Buscar aprovação APROVADA para este nível
-                    $approval = $approvedApprovals->firstWhere('approval_level', $approvalLevel);
+                // Se a aprovação foi realmente aprovada, adicionar assinatura
+                if ($approval->approved && $approval->approved_by) {
+                    // Se o relacionamento approver não estiver carregado, carregar agora
+                    if (!$approval->relationLoaded('approver')) {
+                        $approval->load('approver');
+                    }
                     
-                    // Só adicionar assinatura se a aprovação foi realmente aprovada
-                    if ($approval && $approval->approved && $approval->approved_by && $approval->approver) {
-                        $user = $approval->approver;
-                        if ($user->signature_path) {
-                            $signatures[$profileName] = [
-                                'user_id' => $user->id,
-                                'user_name' => $user->nome_completo ?? $approval->approved_by_name,
-                                'signature_path' => $user->signature_path,
-                                'signature_url' => $request->getSchemeAndHttpHost() . '/storage/' . $user->signature_path
-                            ];
-                            continue;
-                        }
+                    $user = $approval->approver;
+                    
+                    // Se não encontrou o usuário pelo relacionamento, buscar diretamente
+                    if (!$user && $approval->approved_by) {
+                        $user = User::find($approval->approved_by);
+                    }
+                    
+                    if ($user && $user->signature_path) {
+                        $signatures[$profileName] = [
+                            'user_id' => $user->id,
+                            'user_name' => $user->nome_completo ?? $approval->approved_by_name,
+                            'signature_path' => $user->signature_path,
+                            'signature_url' => $request->getSchemeAndHttpHost() . '/storage/' . $user->signature_path
+                        ];
+                        continue;
                     }
                 }
                 
-                // Se não encontrou aprovação aprovada, deixa null (não mostra assinatura)
-                $signatures[$profileName] = null;
+                // Nível selecionado mas ainda não aprovado ou sem assinatura (não mostra assinatura)
+                if (!isset($signatures[$profileName])) {
+                    $signatures[$profileName] = null;
+                }
+            }
+            
+            // Garantir que todos os perfis estejam no array (mesmo que null)
+            foreach ($profiles as $profileName) {
+                if (!isset($signatures[$profileName])) {
+                    $signatures[$profileName] = null;
+                }
             }
         } else {
             // Fallback: buscar por grupo/perfil (método antigo)

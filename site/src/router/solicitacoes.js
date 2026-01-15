@@ -42,12 +42,13 @@ const solicitacoesRoutes = [
 				props: true,
 				component: () => import('@/views/solicitacoes/SolicitacoesView.vue')
 			},
-			{
-				path: ':id/aprovacao',
-				name: 'solicitacoesAprovacao',
-				props: true,
-				component: () => import('@/views/solicitacoes/SolicitacoesAprovacao.vue')
-			}
+			// Componente SolicitacoesAprovacao.vue não implementado - usando AprovarSolicitacao.vue no lugar
+			// {
+			// 	path: ':id/aprovacao',
+			// 	name: 'solicitacoesAprovacao',
+			// 	props: true,
+			// 	component: () => import('@/views/solicitacoes/SolicitacoesAprovacao.vue')
+			// }
 		]
 	},
 	{

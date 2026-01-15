@@ -174,18 +174,6 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/costcenter/{id}', [CostcenterController::class, 'update']);
     Route::post('/costcenter', [CostcenterController::class, 'insert']);
 
-    Route::get('/bancos', [BancoController::class, 'all']);
-    Route::get('/bancos/{id}', [BancoController::class, 'id']);
-    Route::get('/bancos/{id}/delete', [BancoController::class, 'delete']);
-    Route::post('/bancos/{id}', [BancoController::class, 'update']);
-    Route::post('/bancos', [BancoController::class, 'insert']);
-    Route::post('/alterarcaixa/{id}', [BancoController::class, 'alterarCaixa']);
-    Route::post('/sacar/{id}', [BancoController::class, 'sacar']);
-    Route::post('/depositar/{id}', [BancoController::class, 'depositar']);
-    Route::post('/saqueconsulta/{id}', [BancoController::class, 'saqueConsulta']);
-    Route::post('/efetuarsaque/{id}', [BancoController::class, 'efetuarSaque']);
-    Route::post('/fechamentocaixa/{id}', [BancoController::class, 'fechamentoCaixa']);
-
     Route::post('/notas', [NotasController::class, 'insert']);
     Route::get('/notas/{id}', [NotasController::class, 'all']);
     Route::get('/notas/{id}/delete', [NotasController::class, 'delete']);
@@ -292,6 +280,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/protheus/tes', [ProtheusDataController::class, 'tes']);
     Route::get('/cotacoes', [PurchaseQuoteController::class, 'index']);
     Route::post('/cotacoes', [PurchaseQuoteController::class, 'store']);
+    Route::get('/cotacoes/acompanhamento', [PurchaseQuoteController::class, 'acompanhamento']);
     Route::get('/cotacoes/{quote}', [PurchaseQuoteController::class, 'show']);
     Route::post('/cotacoes/{quote}/detalhes', [PurchaseQuoteController::class, 'saveDetails']);
     Route::post('/cotacoes/{quote}/assign-buyer', [PurchaseQuoteController::class, 'assignBuyer']);
@@ -447,169 +436,5 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/fornecedor/{id}', [FornecedorController::class, 'update']);
     Route::post('/fornecedor', [FornecedorController::class, 'insert']);
 
-    Route::get('/endereco/{id}', [AddressController::class, 'id']);
-    Route::get('/endereco/{id}/cliente', [AddressController::class, 'all']);
-    Route::get('/endereco/{id}/delete', [AddressController::class, 'delete']);
-    Route::get('/endereco/cancelarcadastro', [AddressController::class, 'cancelarCadastro']);
-    Route::put('/endereco/{id}', [AddressController::class, 'update']);
-    Route::post('/endereco', [AddressController::class, 'insert']);
-
-    Route::get('/juros', [JurosController::class, 'get']);
-    Route::put('/juros/update', [JurosController::class, 'update']);
-
-
-    Route::get('/cobrancaautomatica', [EmprestimoController::class, 'cobrancaAutomatica']);
-
-
-    Route::get('/emprestimo', [EmprestimoController::class, 'all']);
-    Route::get('/emprestimo/{id}', [EmprestimoController::class, 'id']);
-    Route::get('/emprestimo/{id}/delete', [EmprestimoController::class, 'delete']);
-    Route::put('/emprestimo/{id}', [EmprestimoController::class, 'update']);
-    Route::post('/emprestimo', [EmprestimoController::class, 'insert']);
-    Route::post('/emprestimorefinanciamento', [EmprestimoController::class, 'insertRefinanciamento']);
-    Route::post('/emprestimorenovacao', [EmprestimoController::class, 'insertRenovacao']);
-
-    Route::post('/parcela/{id}/baixamanual', [EmprestimoController::class, 'baixaManual']);
-    Route::post('/parcela/{id}/baixamanualcobrador', [EmprestimoController::class, 'baixaManualCobrador']);
-    Route::post('/parcela/{id}/infoemprestimo', [EmprestimoController::class, 'infoEmprestimo']);
-    Route::post('/parcela/{id}/cobraramanha', [EmprestimoController::class, 'cobrarAmanha']);
-    Route::get('/parcela/{id}/cancelarbaixamanual', [EmprestimoController::class, 'cancelarBaixaManual']);
-
-    Route::get('/baixa/pendentesparahoje', [EmprestimoController::class, 'parcelasPendentesParaHoje']);
-    Route::get('/baixa/parcelasparaextorno', [EmprestimoController::class, 'parcelasParaExtorno']);
-
-
-    Route::get('/cobrancateste', [EmprestimoController::class, 'gerarCobranca']);
-
-
-
-    Route::post('/emprestimo/baixadesconto/{id}', [EmprestimoController::class, 'baixaDesconto']);
-    Route::post('/emprestimo/refinanciamento/{id}', [EmprestimoController::class, 'refinanciamento']);
-    Route::post('/emprestimo/renovacao/{id}', [EmprestimoController::class, 'renovacao']);
-    Route::post('/emprestimo/setar_protesto_emprestimo/{id}', [EmprestimoController::class, 'setarProtestoEmprestimo']);
-    Route::post('/emprestimo/search/fornecedor', [EmprestimoController::class, 'searchFornecedor']);
-    Route::post('/emprestimo/search/cliente', [EmprestimoController::class, 'searchCliente']);
-    Route::post('/emprestimo/search/banco', [EmprestimoController::class, 'searchBanco']);
-    Route::post('/emprestimo/search/bancofechamento', [EmprestimoController::class, 'searchBancoFechamento']);
-    Route::post('/emprestimo/search/costcenter', [EmprestimoController::class, 'searchCostcenter']);
-    Route::post('/emprestimo/search/consultor', [EmprestimoController::class, 'searchConsultor']);
-    Route::get('/feriados', [EmprestimoController::class, 'feriados']);
-    Route::get('/wallet', [EmprestimoController::class, 'wallet']);
-    Route::get('/testebank', [EmprestimoController::class, 'testeBank']);
-
-    Route::get('/recalcularparcelas', [EmprestimoController::class, 'recalcularParcelas']);
-
-    Route::get('/feriado', [FeriadoController::class, 'all']);
-    Route::get('/feriado/{id}', [FeriadoController::class, 'id']);
-    Route::get('/feriado/{id}/delete', [FeriadoController::class, 'delete']);
-    Route::put('/feriado/{id}', [FeriadoController::class, 'update']);
-    Route::post('/feriado', [FeriadoController::class, 'insert']);
-
-    Route::post('/gerar-comprovante', function (Request $request) {
-        // $dados = [
-        //     'valor' => 100,
-        //     'tipo_transferencia' => 'PIX',
-        //     'descricao' => 'Transferência realizada com sucesso',
-        //     'destino_nome' => 'Ray JR',
-        //     'destino_cpf' => '055.463.561-54',
-        //     'destino_chave_pix' => '055.463.561-54',
-        //     'origem_nome' => 'BCODEX TECNOLOGIA E SERVICOS LTDA',
-        //     'origem_cnpj' => '52.196.079/0001-71',
-        //     'origem_instituicao' => 'BANCO BTG PACTUAL S.A.',
-        //     'data_hora' => date('d/m/Y H:i:s'),
-        //     'id_transacao' => '1234567890',
-        // ];
-
-        $dados = $request->all();
-
-        $html = view('comprovante-template', $dados)->render();
-
-        // Salvar o HTML em um arquivo temporário
-        $htmlFilePath = storage_path('app/public/comprovante.html');
-        file_put_contents($htmlFilePath, $html);
-
-        // Caminho para o arquivo PNG de saída
-        $pngPath = storage_path('app/public/comprovante.png');
-
-        // Configurações de tamanho, qualidade e zoom
-        $width = 800;    // Largura em pixels
-        $height = 1600;  // Altura em pixels
-        $quality = 100;  // Qualidade máxima
-        $zoom = 1.8;     // Zoom de 2x
-
-        // Executar o comando wkhtmltoimage com ajustes
-        $command = "xvfb-run wkhtmltoimage --width {$width} --height {$height} --quality {$quality} --zoom {$zoom} {$htmlFilePath} {$pngPath}";
-        shell_exec($command);
-
-        // Verificar se o PNG foi gerado
-        if (file_exists($pngPath)) {
-            try {
-                // Enviar o PNG gerado para o endpoint
-                $response = Http::attach(
-                    'arquivo', // Nome do campo no formulário
-                    file_get_contents($pngPath), // Conteúdo do arquivo
-                    'comprovante.png' // Nome do arquivo enviado
-                )->post('http://node.agecontrole.com.br/enviar-pdf', [
-                    'numero' => '556193305267',
-                ]);
-
-                // Verificar a resposta do endpoint
-                if (is_object($response) && method_exists($response, 'successful') && $response->successful()) {
-                    return response()->json(['message' => 'Imagem enviada com sucessos!'], 200);
-                } else {
-                    return response()->json([
-                        'error' => 'Falha ao enviar imagem',
-                        'details' => $response->body(),
-                    ], 500);
-                }
-            } catch (\Exception $e) {
-                return response()->json([
-                    'error' => 'Erro ao enviar imagem',
-                    'details' => $e->getMessage(),
-                ], 500);
-            }
-        } else {
-            return response()->json(['error' => 'Falha ao gerar a imagem'], 500);
-        }
-    });
-
-    // Route::post('/gerar-comprovante', function (Request $request) {
-    //     // Recebe os dados para o comprovante
-    //     $dados = [
-    //         'valor' => 100,
-    //         'tipo_transferencia' => 'PIX',
-    //         'descricao' => 'Transferência realizada com sucesso',
-    //         'destino_nome' => 'Ray JR',
-    //         'destino_cpf' => '055.463.561-54',
-    //         'destino_chave_pix' => '055.463.561-54',
-    //         'origem_nome' => 'BCODEX TECNOLOGIA E SERVICOS LTDA',
-    //         'origem_cnpj' => '52.196.079/0001-71',
-    //         'origem_instituicao' => 'BANCO BTG PACTUAL S.A.',
-    //         'data_hora' => date('d/m/Y H:i:s'),
-    //         'id_transacao' => '1234567890',
-    //     ];
-
-    //     // Gerar o PDF usando o template e os dados
-    //     $pdf = Pdf::loadView('comprovante-template', $dados);
-
-    //     // Salvar o PDF em um arquivo temporário
-    //     $pdfPath = storage_path('app/public/comprovante.pdf');
-    //     $pdf->save($pdfPath);
-
-    //     // Enviar o PDF gerado para o endpoint externo
-    //     $response = Http::attach(
-    //         'arquivo', // Nome do campo no formulário
-    //         file_get_contents($pdfPath), // Conteúdo do arquivo
-    //         'comprovante.pdf' // Nome do arquivo enviado
-    //     )->post('http://node2.agecontrole.com.br/enviar-pdf', [
-    //         'numero' => '556193305267',
-    //     ]);
-
-    //     // Verificar a resposta do endpoint
-    //     if (is_object($response) && method_exists($response, 'successful') && $response->successful()) {
-    //         return response()->json(['message' => 'PDF enviado com sucesso!'], 200);
-    //     } else {
-    //         return response()->json(['error' => 'Falha ao enviar PDF', 'details' => $response->body()], 500);
-    //     }
-    // });
+    
 });

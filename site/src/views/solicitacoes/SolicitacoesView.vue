@@ -6,9 +6,10 @@ import EmprestimoService from '@/service/EmprestimoService';
 import UtilService from '@/service/UtilService';
 import EmprestimoParcelas from '../parcelas/Parcelas.vue';
 import skeletonEmprestimos from '../skeleton/SkeletonEmprestimos.vue';
-import EmprestimoAdd from './/EmprestimosAdd.vue';
-import EmprestimosRefin from './/EmprestimosRefin.vue';
-import EmprestimoRecalc from './/EmprestimosRecalc.vue';
+// Componentes de empréstimos não implementados - comentados para não quebrar o build
+// import EmprestimoAdd from './/EmprestimosAdd.vue';
+// import EmprestimosRefin from './/EmprestimosRefin.vue';
+// import EmprestimoRecalc from './/EmprestimosRecalc.vue';
 import { ToastSeverity, PrimeIcons } from 'primevue/api';
 
 import LoadingComponent from '../../components/Loading.vue';
@@ -28,9 +29,10 @@ export default {
     components: {
         EmprestimoParcelas,
         skeletonEmprestimos,
-        EmprestimoAdd,
-        EmprestimoRecalc,
-        EmprestimosRefin
+        // Componentes de empréstimos não implementados - comentados para não quebrar o build
+        // EmprestimoAdd,
+        // EmprestimoRecalc,
+        // EmprestimosRefin
     },
     data() {
         return {
@@ -436,6 +438,8 @@ export default {
                     </div>
                 </div>
 
+                <!-- Componentes de empréstimos não implementados - comentados para não quebrar o build -->
+                <!--
                 <EmprestimoRecalc
                     :address="this.client"
                     :oldCicom="this.oldClient"
@@ -476,6 +480,7 @@ export default {
                     @saveInfoEmprestimo="saveInfoDoEmprestimo"
                     v-if="true"
                 />
+                -->
 
                 <EmprestimoParcelas
                     :address="this.parcelas"

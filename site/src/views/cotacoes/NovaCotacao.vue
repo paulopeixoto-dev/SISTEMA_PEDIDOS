@@ -102,7 +102,7 @@
           <th rowspan="2">Qtd</th>
           <th rowspan="2">Descrição do Produto</th>
           <template v-for="(cot, i) in cotacoes" :key="'cab-' + i">
-            <th colspan="6" class="text-center bg-fornecedor">
+            <th colspan="7" class="text-center bg-fornecedor">
               <div class="flex justify-content-between align-items-center mb-2">
                 <strong>Cotação {{ i + 1 }}</strong>
                 <Button
@@ -175,6 +175,7 @@
 
         <tr>
           <template v-for="(cot, i) in cotacoes" :key="'sub-' + i">
+            <th>Marca</th>
             <th>Custo Unit.</th>
             <th>IPI</th>
             <th>Custo C/ IPI /S Difal</th>
@@ -194,6 +195,15 @@
           <template v-for="(cot, i) in cotacoes" :key="'linha-' + i + '-' + p">
             <td>
               <InputText
+                  v-model="cot.itens[p].marca"
+                  placeholder="Marca"
+                  class="w-full p-inputtext-sm"
+                  :class="isMelhorPreco(cot, p, i)"
+                  :disabled="isReadOnly"
+              />
+            </td>
+            <td>
+              <InputText
                   v-model="cot.itens[p].custoUnit"
                   placeholder="R$ 0,00"
                   class="w-full p-inputtext-sm text-right"
@@ -204,23 +214,41 @@
                   :disabled="isReadOnly"
               />
             </td>
-            <td><InputText v-model="cot.itens[p].ipi" placeholder="0%" class="w-full p-inputtext-sm text-center" :disabled="isReadOnly" /></td>
+            <td>
+              <InputText
+                  v-model="cot.itens[p].ipi"
+                  placeholder="0%"
+                  class="w-full p-inputtext-sm text-center"
+                  :class="isMelhorPreco(cot, p, i)"
+                  :disabled="isReadOnly"
+              />
+            </td>
             <td>
               <InputText
                   v-model="cot.itens[p].custoIPI"
                   placeholder="R$ 0,00"
                   class="w-full p-inputtext-sm text-right"
+                  :class="isMelhorPreco(cot, p, i)"
                   @focus="prepararCampoMoeda(i, p, 'custoIPI')"
                   @blur="formatarCampoMoeda(i, p, 'custoIPI')"
                   :disabled="isReadOnly"
               />
             </td>
-            <td><InputText v-model="cot.itens[p].icms" placeholder="0%" class="w-full p-inputtext-sm text-center" :disabled="isReadOnly" /></td>
+            <td>
+              <InputText
+                  v-model="cot.itens[p].icms"
+                  placeholder="0%"
+                  class="w-full p-inputtext-sm text-center"
+                  :class="isMelhorPreco(cot, p, i)"
+                  :disabled="isReadOnly"
+              />
+            </td>
             <td>
               <InputText
                   v-model="cot.itens[p].icmsTotal"
                   placeholder="R$ 0,00"
                   class="w-full p-inputtext-sm text-right"
+                  :class="isMelhorPreco(cot, p, i)"
                   @focus="prepararCampoMoeda(i, p, 'icmsTotal')"
                   @blur="formatarCampoMoeda(i, p, 'icmsTotal')"
                   :disabled="isReadOnly"
@@ -231,6 +259,7 @@
                   v-model="cot.itens[p].custoFinal"
                   placeholder="R$ 0,00"
                   class="w-full p-inputtext-sm text-right"
+                  :class="isMelhorPreco(cot, p, i)"
                   @focus="prepararCampoMoeda(i, p, 'custoFinal')"
                   @blur="formatarCampoMoeda(i, p, 'custoFinal')"
                   :disabled="isReadOnly"
@@ -240,9 +269,10 @@
         </tr>
         </tbody>
       </table>
+    </div>
 
-      <!-- QUADRO RESUMO -->
-      <div v-if="resumo.length" class="quadro-resumo mt-6">
+    <!-- QUADRO RESUMO -->
+    <div v-if="resumo.length" class="quadro-resumo mt-6">
         <h4 class="text-center mb-3 font-semibold">Quadro resumo da cotação e compra</h4>
         <table class="tabela-cotacao">
           <thead>
@@ -299,7 +329,6 @@
           </div>
         </div>
       </div>
-    </div>
 
     <Dialog
         v-model:visible="modalFornecedores.visible"
@@ -509,7 +538,7 @@
             :disabled="!mensagemFinalizar.trim() || finalizandoCotacao"
             @click="confirmarFinalizarCotacao"
         />
-</template>
+      </template>
     </Dialog>
 
     <Dialog
@@ -744,13 +773,40 @@ const approvalTransitions = {
 
 const readOnlyStatuses = ['finalizada', 'analisada', 'analisada_aguardando', 'analise_gerencia', 'aprovado']
 // isReadOnly: não pode editar se o status está em readOnlyStatuses OU se não tem permissão para editar
+// Mas o comprador responsável pode editar mesmo quando can_edit é false, se o status permitir
 const isReadOnly = computed(() => {
-  // Se não tem permissão para editar, sempre read-only
-  if (cotacao.permissions && !cotacao.permissions.can_edit) {
+  // Se o status está na lista de read-only, sempre read-only
+  if (readOnlyStatuses.includes(cotacao.status?.slug)) {
     return true
   }
-  // Se o status está na lista de read-only, também é read-only
-  return readOnlyStatuses.includes(cotacao.status?.slug)
+  
+  // Se tem permissão para editar, não é read-only
+  if (cotacao.permissions && cotacao.permissions.can_edit) {
+    return false
+  }
+  
+  // Se não tem permissão para editar, verificar se é o comprador responsável e o status permite
+  const usuario = store.state.usuario
+  if (!usuario) {
+    return true
+  }
+  
+  // Se não há buyer_id ainda (ainda não foi atribuída), qualquer um pode editar
+  if (!cotacao.buyer || !cotacao.buyer.id) {
+    return false
+  }
+  
+  // Verificar se o usuário é o comprador responsável
+  const buyerId = Number(cotacao.buyer.id)
+  const usuarioId = Number(usuario.id)
+  const isBuyer = buyerId === usuarioId
+  
+  // Status que permitem edição pelo comprador responsável
+  const statusPermitidos = ['cotacao', 'compra_em_andamento', 'autorizado']
+  const statusAtual = cotacao.status?.slug
+  
+  // Se é o comprador responsável e o status permite, pode editar
+  return !(isBuyer && statusPermitidos.includes(statusAtual))
 })
 const availableTransitions = computed(() => approvalTransitions[cotacao.status?.slug] ?? [])
 // canReprove: só pode reprovar se pode aprovar (tem permissão para aprovar)
@@ -844,15 +900,24 @@ const podeAdicionarFornecedor = computed(() => {
 })
 
 const approvalAction = computed(() => {
-  // Se o usuário não pode aprovar, não mostrar botões de ação
-  if (cotacao.permissions && !cotacao.permissions.can_approve) {
-    return { type: 'none' }
-  }
-
   const slug = cotacao.status?.slug
 
+  // "Finalizar Cotação" é uma ação de mudança de status, não de aprovação
+  // O comprador responsável sempre deve poder finalizar quando o status é compra_em_andamento
   if (slug === 'compra_em_andamento') {
-    return { type: 'finalize' }
+    // Verificar se o usuário é o comprador responsável
+    const usuario = store.state.usuario
+    const isBuyer = cotacao.buyer && usuario && Number(cotacao.buyer.id) === Number(usuario.id)
+    
+    // Se for o comprador responsável, permitir finalizar
+    if (isBuyer) {
+      return { type: 'finalize' }
+    }
+  }
+
+  // Para outras ações, verificar se o usuário pode aprovar
+  if (cotacao.permissions && !cotacao.permissions.can_approve) {
+    return { type: 'none' }
   }
 
   if (slug === 'finalizada') {
@@ -938,21 +1003,66 @@ const formatNumberValue = (valor) => {
   })
 }
 
-const criarItensCotacao = () =>
-  produtos.value.map((_, index) => ({
+const criarItensCotacao = () => {
+  // Garantir que todos os itens sejam criados baseado em produtos.value
+  // Se não houver itensOriginais, criar baseado no número de produtos
+  const totalItens = cotacao.itensOriginais?.length ?? produtos.value.length
+  
+  return Array.from({ length: totalItens }, (_, index) => ({
+    marca: null,
     custoUnit: null,
     ipi: null,
     custoIPI: null,
     icms: null,
     icmsTotal: null,
     custoFinal: null,
-    itemId: cotacao.itensOriginais[index]?.id ?? null,
+    itemId: cotacao.itensOriginais?.[index]?.id ?? produtos.value[index]?.id ?? null,
   }))
+}
 
 const addCotacao = () => {
-  if (isReadOnly.value) {
+  // Debug temporário
+  if (process.env.NODE_ENV === 'development') {
+    console.log('addCotacao chamado:', {
+      podeAdicionarFornecedor: podeAdicionarFornecedor.value,
+      isReadOnly: isReadOnly.value,
+      can_edit: cotacao.permissions?.can_edit,
+      buyer: cotacao.buyer,
+      usuario: store.state.usuario,
+    })
+  }
+  
+  // Usar a mesma lógica de podeAdicionarFornecedor ao invés de isReadOnly
+  if (!podeAdicionarFornecedor.value) {
+    toast.add({
+      severity: 'warn',
+      summary: 'Ação não permitida',
+      detail: 'Você não tem permissão para adicionar fornecedores nesta cotação.',
+      life: 3000,
+    })
     return
   }
+  
+  // Garantir que todos os itens sejam criados baseado em produtos.value
+  const novosItens = criarItensCotacao()
+  
+  // Debug temporário
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Adicionando fornecedor:', {
+      produtosCount: produtos.value.length,
+      itensCriados: novosItens.length,
+      itensOriginaisCount: cotacao.itensOriginais?.length ?? 0,
+    })
+  }
+  
+  // Garantir que o número de itens seja igual ao número de produtos
+  if (novosItens.length !== produtos.value.length) {
+    console.warn('Número de itens criados não corresponde ao número de produtos:', {
+      produtos: produtos.value.length,
+      itens: novosItens.length,
+    })
+  }
+  
   cotacoes.value.push({
     fornecedor: null,
     codigo: null,
@@ -964,8 +1074,13 @@ const addCotacao = () => {
     proposta: '',
     condicaoPagamento: null,
     tipoFrete: null,
-    itens: criarItensCotacao(),
+    itens: novosItens,
   })
+  
+  // Debug temporário
+  if (process.env.NODE_ENV === 'development') {
+    console.log('Fornecedor adicionado. Total de fornecedores:', cotacoes.value.length)
+  }
 }
 
 const removeCotacao = (index) => {
@@ -1260,6 +1375,7 @@ const carregarCotacao = async () => {
         return {
           id: itemSalvo.id ?? null,
           itemId: itemOrigem.id,
+          marca: itemSalvo.marca ?? null,
           custoUnit: formatCurrencyValue(itemSalvo.custo_unit),
           ipi: formatNumberValue(itemSalvo.ipi),
           custoIPI: formatCurrencyValue(itemSalvo.custo_ipi),
@@ -1409,6 +1525,7 @@ const salvarCotacao = async (options = {}) => {
         return {
           id: item.id ?? null,
           item_id: item.itemId ?? itemOrigem?.id ?? null,
+          marca: item.marca || null,
           custo_unit: parsePreco(item.custoUnit),
           ipi: parsePreco(item.ipi),
           custo_ipi: parsePreco(item.custoIPI),
@@ -1850,7 +1967,7 @@ onMounted(async () => {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  min-width: 1200px;
+  min-width: 1400px;
 }
 
 .tabela-cotacao th,
@@ -1886,6 +2003,14 @@ onMounted(async () => {
   background-color: #fffefc;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+  width: 100%;
+  overflow-x: auto;
+  box-sizing: border-box;
+}
+
+.quadro-resumo .tabela-cotacao {
+  min-width: 800px;
+  width: 100%;
 }
 
 .selecionado-manual {

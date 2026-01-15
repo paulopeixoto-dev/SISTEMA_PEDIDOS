@@ -17,6 +17,11 @@ const cotacoesRoutes = [
 				path: ':id/analisar-aprovacoes',
 				name: 'cotacao-analisar-aprovacoes',
 				component: () => import('@/views/cotacoes/CotacaoAnalisarAprovacoes.vue')
+			},
+			{
+				path: 'acompanhamento',
+				name: 'cotacoesAcompanhamento',
+				component: () => import('@/views/cotacoes/CotacoesAcompanhamento.vue')
 			}
 		]
 	}

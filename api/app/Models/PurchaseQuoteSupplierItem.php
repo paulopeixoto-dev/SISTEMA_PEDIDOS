@@ -13,6 +13,7 @@ class PurchaseQuoteSupplierItem extends Model
     protected $fillable = [
         'purchase_quote_supplier_id',
         'purchase_quote_item_id',
+        'brand',
         'unit_cost',
         'ipi',
         'unit_cost_with_ipi',

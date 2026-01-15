@@ -364,6 +364,7 @@ class PurchaseQuoteController extends Controller
                 return [
                     'id' => $supplierItem?->id,
                     'item_id' => $item->id,
+                    'marca' => $supplierItem?->brand,
                     'custo_unit' => $supplierItem?->unit_cost,
                     'ipi' => $supplierItem?->ipi,
                     'custo_ipi' => $supplierItem?->unit_cost_with_ipi,
@@ -880,6 +881,7 @@ class PurchaseQuoteController extends Controller
                     $supplierItemData = [
                         'purchase_quote_supplier_id' => $supplier->id,
                         'purchase_quote_item_id' => $item->id,
+                        'brand' => $itemPayload['marca'] ?? null,
                         'unit_cost' => $normalizeNumber($itemPayload['custo_unit'] ?? null),
                         'ipi' => $normalizeNumber($itemPayload['ipi'] ?? null),
                         'unit_cost_with_ipi' => $normalizeNumber($itemPayload['custo_ipi'] ?? null),
@@ -2096,5 +2098,190 @@ class PurchaseQuoteController extends Controller
 
         $approvalService = app(PurchaseQuoteApprovalService::class);
         return $approvalService->getNextPendingLevelForUser($quote, $user);
+    }
+
+    /**
+     * Retorna dados de acompanhamento de cotações (similar ao Excel)
+     */
+    public function acompanhamento(Request $request)
+    {
+        $companyId = $request->header('company-id');
+        
+        $quotes = PurchaseQuote::with([
+            'statusHistory',
+            'approvals',
+            'buyer',
+            'items',
+            'orders'
+        ])
+        ->when($companyId, function ($query) use ($companyId) {
+            $query->where(function ($q) use ($companyId) {
+                $q->where('company_id', $companyId)
+                  ->orWhereNull('company_id');
+            });
+        })
+        ->orderByDesc('created_at')
+        ->get();
+        
+        // Log para debug
+        Log::info('Acompanhamento - Total de cotações encontradas', [
+            'total' => $quotes->count(),
+            'company_id' => $companyId,
+        ]);
+
+        $data = $quotes->map(function ($quote) {
+            // Calcular datas importantes
+            $dataSolicitacao = null;
+            if ($quote->requested_at) {
+                try {
+                    $dataSolicitacao = \Carbon\Carbon::parse($quote->requested_at);
+                } catch (\Exception $e) {
+                    $dataSolicitacao = null;
+                }
+            }
+            if (!$dataSolicitacao && $quote->created_at) {
+                try {
+                    $dataSolicitacao = \Carbon\Carbon::parse($quote->created_at);
+                } catch (\Exception $e) {
+                    $dataSolicitacao = null;
+                }
+            }
+            $dataEncaminhamento = null; // Quando foi atribuído ao comprador
+            $dataFinalizacao = null; // Quando status mudou para finalizada
+            $dataAprovacaoDiretor = null; // Quando DIRETOR aprovou
+            $dataLiberacaoColeta = null; // Quando foi aprovado (todos os níveis)
+            $dataColeta = null; // Quando foi coletado (pode não ter)
+            $dataAtendimento = null; // Quando foi atendido (pode não ter)
+            
+            // Buscar data de encaminhamento (quando buyer_id foi atribuído)
+            if ($quote->buyer_id && $quote->statusHistory && $quote->statusHistory->isNotEmpty()) {
+                $encaminhamentoHistory = $quote->statusHistory
+                    ->where('status_slug', 'cotacao')
+                    ->sortBy('acted_at')
+                    ->first();
+                $dataEncaminhamento = $encaminhamentoHistory?->acted_at ?? null;
+            }
+            
+            // Buscar data de finalização
+            if ($quote->statusHistory && $quote->statusHistory->isNotEmpty()) {
+                $finalizacaoHistory = $quote->statusHistory
+                    ->where('status_slug', 'finalizada')
+                    ->sortBy('acted_at')
+                    ->first();
+                $dataFinalizacao = $finalizacaoHistory?->acted_at ?? null;
+            }
+            
+            // Buscar data de aprovação do DIRETOR
+            if ($quote->approvals && $quote->approvals->isNotEmpty()) {
+                $diretorApproval = $quote->approvals
+                    ->where('approval_level', 'DIRETOR')
+                    ->where('approved', true)
+                    ->first();
+                $dataAprovacaoDiretor = $diretorApproval?->approved_at ?? null;
+            }
+            
+            // Buscar data de liberação para coleta (quando todos os níveis foram aprovados)
+            if ($quote->approvals && $quote->approvals->isNotEmpty() && $quote->isAllApproved()) {
+                $ultimaAprovacao = $quote->approvals
+                    ->where('approved', true)
+                    ->sortByDesc('approved_at')
+                    ->first();
+                $dataLiberacaoColeta = $ultimaAprovacao?->approved_at ?? null;
+            }
+            
+            // Calcular diferenças em dias
+            $diasComRM = null;
+            if ($dataSolicitacao) {
+                try {
+                    $diasComRM = now()->diffInDays($dataSolicitacao);
+                } catch (\Exception $e) {
+                    Log::warning('Erro ao calcular dias com RM', [
+                        'quote_id' => $quote->id,
+                        'data_solicitacao' => $dataSolicitacao,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+            $diasAtrasoInicioCotacao = null;
+            if ($dataSolicitacao && $dataEncaminhamento) {
+                $diasAtrasoInicioCotacao = $dataSolicitacao->diffInDays($dataEncaminhamento);
+            }
+            
+            $tempoSolicitacao = null;
+            if ($dataSolicitacao) {
+                $dataFim = $dataFinalizacao ?? $dataAprovacaoDiretor ?? now();
+                $tempoSolicitacao = $dataSolicitacao->diffInDays($dataFim);
+            }
+            
+            $diasAtraso = null; // Pode ser calculado baseado em prioridade
+            $prioridadeMedia = $quote->items->avg('priority_days') ?? null;
+            if ($prioridadeMedia && $tempoSolicitacao !== null) {
+                $diasAtraso = $tempoSolicitacao - $prioridadeMedia;
+            }
+            
+            $diasAtrasoColeta = null;
+            if ($dataLiberacaoColeta && $dataColeta) {
+                $diasAtrasoColeta = $dataLiberacaoColeta->diffInDays($dataColeta);
+            }
+            
+            $diasAtrasoColetaAtendimento = null;
+            if ($dataColeta && $dataAtendimento) {
+                $diasAtrasoColetaAtendimento = $dataColeta->diffInDays($dataAtendimento);
+            }
+            
+            $diasParaEntrega = null;
+            if ($dataAtendimento) {
+                $diasParaEntrega = now()->diffInDays($dataAtendimento);
+            }
+            
+            $diasFinalizacaoAprovacao = null;
+            if ($dataFinalizacao && $dataAprovacaoDiretor) {
+                $diasFinalizacaoAprovacao = $dataFinalizacao->diffInDays($dataAprovacaoDiretor);
+            }
+            
+            // Descrição (observação ou primeira descrição de item)
+            $descricao = $quote->observation ?? $quote->items->first()?->description ?? '-';
+            
+            // Número Protheus (se houver exportação)
+            $numeroProtheus = $quote->protheus_export_status === 'exported' ? $quote->quote_number : null;
+            
+            return [
+                'numero_rm' => $quote->quote_number,
+                'numero_protheus' => $numeroProtheus,
+                'solicitante' => $quote->requester_name,
+                'prioridade' => $prioridadeMedia ? (int) $prioridadeMedia : null,
+                'comprador' => $quote->buyer_name,
+                'frente_obra' => $quote->work_front,
+                'data_solicitacao' => $dataSolicitacao ? $dataSolicitacao->format('d/m/Y') : null,
+                'data_encaminhamento' => $dataEncaminhamento ? $dataEncaminhamento->format('d/m/Y') : null,
+                'data_finalizacao' => $dataFinalizacao ? $dataFinalizacao->format('d/m/Y') : null,
+                'data_aprovacao_diretor' => $dataAprovacaoDiretor ? $dataAprovacaoDiretor->format('d/m/Y') : null,
+                'dias_finalizacao_aprovacao' => $diasFinalizacaoAprovacao,
+                'quant_dias_com_rm' => $diasComRM,
+                'dias_atraso_inicio_cotacao' => $diasAtrasoInicioCotacao,
+                'tempo_solicitacao' => $tempoSolicitacao,
+                'dias_atraso' => $diasAtraso,
+                'data_liberacao_coleta' => $dataLiberacaoColeta ? $dataLiberacaoColeta->format('d/m/Y') : null,
+                'data_coleta' => $dataColeta ? $dataColeta->format('d/m/Y') : null,
+                'dias_atraso_coleta' => $diasAtrasoColeta,
+                'data_atendimento' => $dataAtendimento ? $dataAtendimento->format('d/m/Y') : null,
+                'dias_atraso_coleta_atendimento' => $diasAtrasoColetaAtendimento,
+                'quantidade_dias_entrega' => $diasParaEntrega,
+                'status' => $quote->current_status_label,
+                'status_slug' => $quote->current_status_slug,
+                'descricao' => $descricao,
+                'id' => $quote->id,
+            ];
+        });
+
+        // Log para debug
+        Log::info('Acompanhamento - Dados processados', [
+            'total_registros' => $data->count(),
+            'primeiro_registro' => $data->first(),
+        ]);
+        
+        return response()->json([
+            'data' => $data->values()->all(), // Garantir array indexado
+        ], Response::HTTP_OK);
     }
 }
